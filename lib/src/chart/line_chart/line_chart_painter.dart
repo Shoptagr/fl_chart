@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:fl_chart/src/chart/base/axis_chart/axis_chart_extensions.dart';
@@ -556,11 +557,13 @@ class LineChartPainter extends AxisChartPainter<LineChartData> {
 
     final x = getPixelX(barSpots[0].x, viewSize, holder);
     final y = getPixelY(barSpots[0].y, viewSize, holder);
+
     if (appendToPath == null) {
       path.moveTo(x, y);
     } else {
       path.lineTo(x, y);
     }
+
     for (var i = 0; i < size; i++) {
       /// CurrentSpot
       final current = Offset(
@@ -581,11 +584,78 @@ class LineChartPainter extends AxisChartPainter<LineChartData> {
         path.lineTo(next.dx, next.dy);
       } else {
         final deltaX = next.dx - current.dx;
+        final deltaY = next.dy - current.dy;
+        final directionY = deltaY > 0 ? 1 : -1;
 
-        path
-          ..lineTo(current.dx + deltaX - (deltaX * stepDirection), current.dy)
-          ..lineTo(current.dx + deltaX - (deltaX * stepDirection), next.dy)
-          ..lineTo(next.dx, next.dy);
+        final semiStepX = deltaX - (deltaX * stepDirection);
+        final semiStepY = deltaY.abs() / 2;
+
+        if (barData.isCurved) {
+          final smoothness = barData.curveSmoothness;
+
+          final roundingStep = clampDouble(
+            smoothness,
+            0,
+            semiStepX < semiStepY ? semiStepX : semiStepY,
+          );
+
+          final middlePointTop = Offset(
+            current.dx + semiStepX,
+            current.dy,
+          );
+          final middlePointBottom = Offset(
+            current.dx + semiStepX,
+            next.dy,
+          );
+
+          final x1 = Offset(
+            middlePointTop.dx - roundingStep,
+            middlePointTop.dy,
+          );
+          final x2 = Offset(
+            middlePointTop.dx,
+            middlePointTop.dy + roundingStep * directionY,
+          );
+          final x3 = Offset(
+            middlePointBottom.dx,
+            middlePointBottom.dy - roundingStep * directionY,
+          );
+          final x4 = Offset(
+            middlePointBottom.dx + roundingStep,
+            middlePointBottom.dy,
+          );
+
+          final x5 = Offset(
+            next.dx - roundingStep,
+            middlePointBottom.dy,
+          );
+
+          path
+            ..lineTo(x1.dx, x1.dy)
+            ..cubicTo(
+              x1.dx,
+              x1.dy,
+              middlePointTop.dx,
+              middlePointTop.dy,
+              x2.dx,
+              x2.dy,
+            )
+            ..lineTo(x3.dx, x3.dy)
+            ..cubicTo(
+              x3.dx,
+              x3.dy,
+              middlePointBottom.dx,
+              middlePointBottom.dy,
+              x4.dx,
+              x4.dy,
+            )
+            ..lineTo(x5.dx, x5.dy);
+        } else {
+          path
+            ..lineTo(current.dx + semiStepX, current.dy)
+            ..lineTo(current.dx + semiStepX, next.dy)
+            ..lineTo(next.dx, next.dy);
+        }
       }
     }
 
